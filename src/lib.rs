@@ -2,24 +2,36 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
-type JobRx = Arc<Mutex<mpsc::Receiver<Job>>>;
+type JobRx = Arc<Mutex<mpsc::Receiver<Message>>>;
+
+enum Message {
+    NewJob(Job),
+    Terminate,
+}
 
 struct Worker {
     id: usize,
-    thread: JoinHandle<()>,
+    thread: Option<JoinHandle<()>>,
 }
 
 impl Worker {
     fn new(id: usize, receiver: JobRx) -> Worker {
         Worker {
             id,
-            thread: thread::spawn(move || loop {
-                let job = receiver.lock().unwrap().recv().unwrap();
+            thread: Some(thread::spawn(move || loop {
+                let message = receiver.lock().unwrap().recv().unwrap();
 
-                println!("Worker {} got a job", id);
-
-                job();
-            }),
+                match message {
+                    Message::NewJob(job) => {
+                        println!("Worker {} got a job.", id);
+                        job();
+                    }
+                    Message::Terminate => {
+                        println!("Worker {} was told to terminate.", id);
+                        break;
+                    }
+                }
+            })),
         }
     }
 }
@@ -28,7 +40,7 @@ type Job = Box<dyn FnOnce() + Send + 'static>;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Job>,
+    sender: mpsc::Sender<Message>,
 }
 
 impl ThreadPool {
@@ -49,6 +61,26 @@ impl ThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
-        self.sender.send(Box::new(job)).unwrap()
+        self.sender.send(Message::NewJob(Box::new(job))).unwrap()
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        println!("Sending terminate messages to all workers.");
+
+        for _ in &mut self.workers {
+            self.sender.send(Message::Terminate).unwrap();
+        }
+
+        println!("Shutting down all workers");
+
+        for w in &mut self.workers {
+            println!("Shutting down worker {}", w.id);
+
+            if let Some(thread) = w.thread.take() {
+                thread.join().unwrap()
+            }
+        }
     }
 }
