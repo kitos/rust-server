@@ -2,8 +2,6 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
-type JobRx = Arc<Mutex<mpsc::Receiver<Message>>>;
-
 enum Message {
     NewJob(Job),
     Terminate,
@@ -15,7 +13,7 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: JobRx) -> Worker {
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
         Worker {
             id,
             thread: Some(thread::spawn(move || loop {
@@ -46,6 +44,8 @@ pub struct ThreadPool {
 impl ThreadPool {
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
+
+        println!("Creating ThreadPull with {} threads", size);
 
         let (sender, receiver) = mpsc::channel();
         let receiver = Arc::new(Mutex::new(receiver));

@@ -3,13 +3,17 @@ use std::fs;
 use std::io::{Error, Read, Write};
 use std::net::{TcpListener, TcpStream};
 
+const DEFAULT_HOST: &str = "127.0.0.1:7878";
+
 fn main() {
-    start_server().expect("Something went wrong :(")
+    start_server(None).expect("Something went wrong :(")
 }
 
-fn start_server() -> Result<(), Error> {
-    let pool = ThreadPool::new(4);
-    let listener = TcpListener::bind("127.0.0.1:7878")?;
+fn start_server(host: Option<&str>) -> Result<(), Error> {
+    let pool = ThreadPool::new(num_cpus::get());
+    let listener = TcpListener::bind(host.unwrap_or(DEFAULT_HOST))?;
+
+    println!("Server is listening - http://{}", DEFAULT_HOST);
 
     for stream in listener.incoming() {
         pool.execute(|| handle(stream.unwrap()).unwrap());
