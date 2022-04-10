@@ -16,7 +16,16 @@ fn start_server(host: Option<&str>) -> Result<(), Error> {
     println!("Server is listening - http://{}", DEFAULT_HOST);
 
     for stream in listener.incoming() {
-        pool.execute(|| handle(stream.unwrap()).unwrap());
+        match stream {
+            Ok(stream) => pool.execute(|| {
+                if let Err(err) = handle(stream) {
+                    println!("Failed to handle: {}", err)
+                }
+            }),
+            Err(err) => {
+                println!("Failed to process stream: {}", err)
+            }
+        }
     }
 
     Ok(())
