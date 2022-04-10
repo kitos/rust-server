@@ -1,3 +1,4 @@
+use rust_server::ThreadPool;
 use std::fs;
 use std::io::{Error, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -7,10 +8,11 @@ fn main() {
 }
 
 fn start_server() -> Result<(), Error> {
+    let pool = ThreadPool::new(4);
     let listener = TcpListener::bind("127.0.0.1:7878")?;
 
     for stream in listener.incoming() {
-        handle(stream?)?;
+        pool.execute(|| handle(stream.unwrap()).unwrap());
     }
 
     Ok(())
